@@ -4,30 +4,38 @@ import pandas as pd
 from keras.layers import Input, Flatten, Dense
 from keras.models import Model
 from scipy.misc import imread
+from sklearn.model_selection import train_test_split
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
+from keras.layers.normalization import BatchNormalization
+from keras.preprocessing import image
+import cv2
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # command line flags
-flags.DEFINE_integer('epochs', 5, "The number of epochs.")
-flags.DEFINE_integer('batch_size', 256, "The batch size.")
+flags.DEFINE_integer('epochs', 10, "The number of epochs.")
+flags.DEFINE_integer('batch_size', 50, "The batch size.")
 
 
 def preprocess(image):
-    """Convert image from [0, 255] to [-0.5, 0.5]"""
-    return image/255 - 0.5
+    """Convert image from [0, 255] to [-1, 1]"""
+    image = cv2.resize(image, (160, 80), interpolation=cv2.INTER_AREA)
+    return image/128 - 1
 
 
-def generate_data(driving_log):
+def generate_data(data, size=FLAGS.batch_size):
     """Generator for data stored in driving log to be used in fit_generator from keras"""
-    size = 20
     while True:
         images = []
         targets = []
-        for index, row in driving_log.iterrows():
+        index = 0
+        for _, row in data.iterrows():
+            index += 1
             image = imread(row['center_image']).astype(np.float32)
+            # image = image.load_image(row['center_image'])
+            # print(image.shape)
             images.append(preprocess(image))
             targets.append(row['steering_angle'])
             if index % size == 0:
@@ -35,38 +43,48 @@ def generate_data(driving_log):
                 images = []
                 targets = []
 
-        if len(images) < 50:
+        if len(images) < size:
             yield (np.array(images), np.array(targets))
 
 
 def main(_):
     driving_log = pd.read_csv('data/driving_log.csv', header=None, usecols=[0, 3], names=['center_image', 'steering_angle'])
-    print(driving_log.ix[4])
-    print(driving_log.head(4))
+    # print(driving_log.ix[4])
+    # print(driving_log.head(4))
     # print(next(generate_data(driving_log)))
 
-    # define model
-    inp = Input(shape=(160, 320, 3))
+    # define input layer
+    inp = Input(shape=(160/2, 320/2, 3))
+    # out = BatchNormalization(axis=3)(inp)
     # convolution layers
-    out = Convolution2D(32, 3, 3)(inp)
+    out = Convolution2D(32, 5, 5)(inp)
     out = MaxPooling2D()(out)
-    out = Convolution2D(64, 3, 3)(out)
+    out = Convolution2D(64, 5, 5)(out)
     out = MaxPooling2D()(out)
     out = Convolution2D(128, 3, 3)(out)
-    out = MaxPooling2D()(out)
-    out = Convolution2D(64, 3, 3)(out)
     out = MaxPooling2D()(out)
 
     # Fully connected layers
     out = Flatten()(out)
-    out = Dense(32)(out)
+    out = Dense(256)(out)
+    out = Dense(64)(out)
     out = Dense(1)(out)
+
+    # Define model
     model = Model(inp, out)
     model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
 
-    # train model
-    model.fit_generator(generate_data(driving_log), nb_epoch=FLAGS.epochs, samples_per_epoch=len(driving_log))
+    # split train/validation
+    train_log, validation_log = train_test_split(driving_log, test_size=0.2)
 
+    # train model
+    model.fit_generator(generator=generate_data(train_log), validation_data=generate_data(validation_log), nb_epoch=FLAGS.epochs, samples_per_epoch=len(train_log), nb_val_samples=len(validation_log))
+
+    # save data
+    model.save_weights("model.h5")
+    with open("model.json", 'w') as out:
+        out.write(model.to_json())
+    return 0
 
 # calls the `main` function above
 if __name__ == '__main__':
