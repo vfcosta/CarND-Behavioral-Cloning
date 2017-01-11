@@ -19,17 +19,33 @@ flags.DEFINE_integer('batch_size', 50, "The batch size.")
 flags.DEFINE_float('scale', 0.5, "Image scale.")
 flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
+vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
+flip_treshold = 0.01
 
-def preprocess(image):
+
+def crop(image_array):
+    return image_array[vertical_crop[0]:vertical_crop[1], :, :]
+
+
+def preprocess(image, normalize=True, flip=False):
     """Rescale, crop, and convert image from [0, 255] to [-1, 1]"""
-    image = image.resize((int(160*FLAGS.scale), int(320*FLAGS.scale)))
+    image = image.resize((int(320*FLAGS.scale), int(160*FLAGS.scale)))
     image_array = np.asarray(image)
-    # image = cv2.resize(image, (int(320*FLAGS.scale), int(160*FLAGS.scale)), interpolation=cv2.INTER_AREA)
-    image_array = image_array[int(55*FLAGS.scale):int(135*FLAGS.scale), :, :]
-    return image_array/128 - 1
+    image_array = crop(image_array)
+    if flip: image_array = np.fliplr(image_array)
+    if normalize: image_array = image_array / 128 - 1
+    return image_array
 
 
-def generate_data(data, size=FLAGS.batch_size):
+def generate_single(row, image_label='center', flip=False):
+    steering_factor = {'center': 0, 'right': -0.25, 'left': 0.25}
+    image = kimage.load_img(FLAGS.data_dir + "/" + row[image_label].strip())
+    steering = row['steering'] + steering_factor[image_label]
+    if flip: steering *= -1
+    return preprocess(image, flip=flip), steering
+
+
+def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 'left']):
     """Generator for data stored in driving log to be used in fit_generator from keras"""
     while True:
         images = []
@@ -37,23 +53,25 @@ def generate_data(data, size=FLAGS.batch_size):
         index = 0
         for _, row in data.iterrows():
             index += 1
-            image = kimage.load_img(FLAGS.data_dir + "/" + row['center'])
-            images.append(preprocess(image))
-            targets.append(row['steering'])
+            for image_label in image_labels:
+                for flip in [False, True]:
+                    # skip images with smaller steering angles
+                    if flip and abs(row['steering']) <= flip_treshold: continue
+                    image, target = generate_single(row, image_label=image_label, flip=flip)
+                    images.append(image)
+                    targets.append(target)
             if index % size == 0 or index == len(data):
                 yield (np.array(images), np.array(targets))
                 images = []
                 targets = []
 
 
-def main(_):
-    driving_log = pd.read_csv(FLAGS.data_dir + '/driving_log.csv', usecols=[0, 1, 2, 3])
-    print(driving_log.head(4))
-
+def create_model():
     # define input layer
-    # inp = Input(shape=(int(160*FLAGS.scale), int(320*FLAGS.scale), 3))
-    inp = Input(shape=(40, 80, 3))
+    inp = Input(shape=(vertical_crop[1] - vertical_crop[0], int(320 * FLAGS.scale), 3))
+
     # out = BatchNormalization(axis=3)(inp)
+
     # convolution layers
     out = Convolution2D(16, 5, 5, subsample=(2, 2))(inp)
     # out = MaxPooling2D()(out)
@@ -87,13 +105,32 @@ def main(_):
     # Define model
     model = Model(inp, out)
     model.compile(optimizer="adam", loss='mean_squared_error')
+    return model
 
+
+def calculate_data_len(data, positions=3):
+    """
+    Calculate the length of data based on augmentation strategies
+    positions = 3 # center, right and left images
+    """
+    flip_len = len(data[data['steering'] > flip_treshold])
+    return positions * (len(data) + flip_len)
+
+
+def main(_):
+    driving_log = pd.read_csv(FLAGS.data_dir + '/driving_log.csv', usecols=[0, 1, 2, 3])
+
+    model = create_model()
     # split train/validation
     train_log, validation_log = train_test_split(driving_log, test_size=0.2)
 
+    # calculate the length of training and validation data
+    train_len = calculate_data_len(train_log)
+    validation_len = calculate_data_len(validation_log)
+
     # train model
     model.fit_generator(generator=generate_data(train_log), validation_data=generate_data(validation_log),
-                        nb_epoch=FLAGS.epochs, samples_per_epoch=len(train_log), nb_val_samples=len(validation_log))
+                        nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
 
     # save data
     model.save_weights("model.h5")
