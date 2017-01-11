@@ -113,7 +113,7 @@ def calculate_data_len(data, positions=3):
     Calculate the length of data based on augmentation strategies
     positions = 3 # center, right and left images
     """
-    flip_len = len(data[data['steering'] > flip_treshold])
+    flip_len = len(data[abs(data['steering']) > flip_treshold])
     return positions * (len(data) + flip_len)
 
 
