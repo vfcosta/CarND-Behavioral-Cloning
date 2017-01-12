@@ -15,12 +15,12 @@ FLAGS = flags.FLAGS
 
 # command line flags
 flags.DEFINE_integer('epochs', 5, "The number of epochs.")
-flags.DEFINE_integer('batch_size', 50, "The batch size.")
-flags.DEFINE_float('scale', 0.5, "Image scale.")
+flags.DEFINE_integer('batch_size', 100, "The batch size.")
+flags.DEFINE_float('scale', 0.25, "Image scale.")
 flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-flip_treshold = 0.01
+flip_threshold = 0.01
 
 
 def crop(image_array):
@@ -56,7 +56,7 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
             for image_label in image_labels:
                 for flip in [False, True]:
                     # skip images with smaller steering angles
-                    if flip and abs(row['steering']) <= flip_treshold: continue
+                    if flip and abs(row['steering']) <= flip_threshold: continue
                     image, target = generate_single(row, image_label=image_label, flip=flip)
                     images.append(image)
                     targets.append(target)
@@ -75,29 +75,25 @@ def create_model():
     # convolution layers
     out = Convolution2D(16, 5, 5, subsample=(2, 2))(inp)
     # out = MaxPooling2D()(out)
-    # out = Activation('relu')(out)
-    out = ELU()(out)
+    out = Activation('relu')(out)
+    # out = ELU()(out)
 
     out = Convolution2D(32, 5, 5, subsample=(2, 2))(out)
-    # out = MaxPooling2D()(out)
-    # out = Activation('relu')(out)
-    out = ELU()(out)
+    out = Activation('relu')(out)
 
-    out = Convolution2D(64, 3, 3)(out)
-    # out = MaxPooling2D()(out)
+    # out = Convolution2D(64, 3, 3)(out)
     # out = Activation('relu')(out)
-    out = ELU()(out)
 
     # Fully connected layers
     out = Flatten()(out)
 
     out = Dense(512)(out)
     out = Dropout(0.5)(out)
-    out = ELU()(out)
+    out = Activation('relu')(out)
 
     out = Dense(100)(out)
     out = Dropout(0.5)(out)
-    out = ELU()(out)
+    out = Activation('relu')(out)
 
     # Output layer
     out = Dense(1)(out)
@@ -113,7 +109,7 @@ def calculate_data_len(data, positions=3):
     Calculate the length of data based on augmentation strategies
     positions = 3 # center, right and left images
     """
-    flip_len = len(data[abs(data['steering']) > flip_treshold])
+    flip_len = len(data[abs(data['steering']) > flip_threshold])
     return positions * (len(data) + flip_len)
 
 
