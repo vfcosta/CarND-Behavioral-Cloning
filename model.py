@@ -73,27 +73,24 @@ def create_model():
     # out = BatchNormalization(axis=3)(inp)
 
     # convolution layers
-    out = Convolution2D(16, 5, 5, subsample=(2, 2))(inp)
-    # out = MaxPooling2D()(out)
-    out = Activation('relu')(out)
-    # out = ELU()(out)
-
-    out = Convolution2D(32, 5, 5, subsample=(2, 2))(out)
+    out = Convolution2D(16, 3, 3)(inp)
+    out = MaxPooling2D()(out)
     out = Activation('relu')(out)
 
-    # out = Convolution2D(64, 3, 3)(out)
-    # out = Activation('relu')(out)
+    out = Convolution2D(64, 3, 3)(out)
+    out = MaxPooling2D()(out)
+    out = Activation('relu')(out)
 
     # Fully connected layers
     out = Flatten()(out)
 
-    out = Dense(512)(out)
-    out = Dropout(0.5)(out)
+    out = Dense(256)(out)
+    out = Dropout(0.3)(out)
     out = Activation('relu')(out)
 
-    out = Dense(100)(out)
-    out = Dropout(0.5)(out)
-    out = Activation('relu')(out)
+    # out = Dense(100)(out)
+    # out = Dropout(0.5)(out)
+    # out = Activation('relu')(out)
 
     # Output layer
     out = Dense(1)(out)
