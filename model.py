@@ -15,7 +15,7 @@ FLAGS = flags.FLAGS
 
 # command line flags
 flags.DEFINE_integer('epochs', 5, "The number of epochs.")
-flags.DEFINE_integer('batch_size', 100, "The batch size.")
+flags.DEFINE_integer('batch_size', 50, "The batch size.")
 flags.DEFINE_float('scale', 0.25, "Image scale.")
 flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
@@ -85,12 +85,12 @@ def create_model():
     out = Flatten()(out)
 
     out = Dense(256)(out)
-    out = Dropout(0.3)(out)
+    out = Dropout(0.4)(out)
     out = Activation('relu')(out)
 
-    # out = Dense(100)(out)
-    # out = Dropout(0.5)(out)
-    # out = Activation('relu')(out)
+    out = Dense(50)(out)
+    out = Dropout(0.4)(out)
+    out = Activation('relu')(out)
 
     # Output layer
     out = Dense(1)(out)
