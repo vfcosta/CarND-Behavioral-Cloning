@@ -6,9 +6,7 @@ from keras.models import Model
 from sklearn.model_selection import train_test_split
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
-from keras.layers.normalization import BatchNormalization
 from keras.preprocessing import image as kimage
-import cv2
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -20,7 +18,7 @@ flags.DEFINE_float('scale', 0.25, "Image scale.")
 flags.DEFINE_string('data_dir', 'data', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-flip_threshold = 0.01
+flip_threshold = 0.1
 
 
 def crop(image_array):
@@ -57,8 +55,8 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
             index += 1
             for image_label in image_labels:
                 for flip in [False, True]:
-                    # skip images with smaller steering angles
-                    if flip and abs(row['steering']) <= flip_threshold: continue
+                    # do not flip images with smaller steering angles
+                    if flip_threshold and flip and abs(row['steering']) <= flip_threshold: continue
                     image, target = generate_single(row, image_label=image_label, flip=flip)
                     images.append(image)
                     targets.append(target)
@@ -71,8 +69,6 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
 def create_model():
     # define input layer
     inp = Input(shape=(vertical_crop[1] - vertical_crop[0], int(320 * FLAGS.scale), 3))
-
-    # out = BatchNormalization(axis=3)(inp)
 
     # convolution layers
     out = Convolution2D(16, 3, 3)(inp)
@@ -108,7 +104,7 @@ def calculate_data_len(data, positions=3):
     Calculate the length of data based on augmentation strategies
     positions = 3 # center, right and left images
     """
-    flip_len = len(data[abs(data['steering']) > flip_threshold])
+    flip_len = len(data[abs(data['steering']) > flip_threshold]) if flip_threshold else len(data['steering'])
     return positions * (len(data) + flip_len)
 
 
@@ -119,12 +115,16 @@ def main(_):
     # split train/validation
     train_log, validation_log = train_test_split(driving_log, test_size=0.2)
 
+    # select images to use in training
+    image_labels = ['center', 'right', 'left']
+
     # calculate the length of training and validation data
-    train_len = calculate_data_len(train_log)
-    validation_len = calculate_data_len(validation_log)
+    train_len = calculate_data_len(train_log, positions=len(image_labels))
+    validation_len = calculate_data_len(validation_log, positions=len(image_labels))
 
     # train model
-    model.fit_generator(generator=generate_data(train_log), validation_data=generate_data(validation_log),
+    model.fit_generator(generator=generate_data(train_log, image_labels=image_labels),
+                        validation_data=generate_data(validation_log, image_labels=image_labels),
                         nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
 
     # save data
