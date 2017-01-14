@@ -1,3 +1,4 @@
+import PIL
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -18,20 +19,29 @@ flags.DEFINE_float('scale', 0.25, "Image scale.")
 flags.DEFINE_string('data_dir', 'data', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-flip_threshold = 0.1
+flip_threshold = 0.01
 
 
-def crop(image_array):
+def crop_image(image_array):
     return image_array[vertical_crop[0]:vertical_crop[1], :, :]
 
 
+def resize_image(image):
+    """Resize image using ANTIALIAS algoithm for better performance in downscale"""
+    return image.resize((int(320*FLAGS.scale), int(160*FLAGS.scale)), resample=PIL.Image.ANTIALIAS)
+
+
+def normalize_image(image_array):
+    """Convert image from [0, 255] to [-1, 1]"""
+    return image_array / 128 - 1
+
+
 def preprocess(image, normalize=True, flip=False):
-    """Rescale, crop, and convert image from [0, 255] to [-1, 1]"""
-    image = image.resize((int(320*FLAGS.scale), int(160*FLAGS.scale)))
-    image_array = np.asarray(image)
-    image_array = crop(image_array)
+    """Resize, crop, flip and normalize image"""
+    image = resize_image(image)
+    image_array = crop_image(np.asarray(image))
     if flip: image_array = np.fliplr(image_array)
-    if normalize: image_array = image_array / 128 - 1
+    if normalize: image_array = normalize_image(image_array)
     return image_array
 
 
