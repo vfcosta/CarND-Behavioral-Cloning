@@ -108,6 +108,14 @@ def calculate_data_len(data, positions=3):
     return positions * (len(data) + flip_len)
 
 
+def save_model(model):
+    # save data
+    print("saving model...")
+    model.save_weights("model.h5")
+    with open("model.json", 'w') as out:
+        out.write(model.to_json())
+
+
 def main(_):
     driving_log = pd.read_csv(FLAGS.data_dir + '/driving_log.csv', usecols=[0, 1, 2, 3])
 
@@ -123,14 +131,16 @@ def main(_):
     validation_len = calculate_data_len(validation_log, positions=len(image_labels))
 
     # train model
-    model.fit_generator(generator=generate_data(train_log, image_labels=image_labels),
-                        validation_data=generate_data(validation_log, image_labels=image_labels),
-                        nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
+    try:
+        model.fit_generator(generator=generate_data(train_log, image_labels=image_labels),
+                            validation_data=generate_data(validation_log, image_labels=image_labels),
+                            nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
+        save = "y" # force save when finish
+    except KeyboardInterrupt:
+        # option to save even when it's interrupted
+        save = input("\n\nStopped! Do you want to save? <y/n>")
 
-    # save data
-    model.save_weights("model.h5")
-    with open("model.json", 'w') as out:
-        out.write(model.to_json())
+    if save == "y": save_model(model)
     print("Finished!")
 
 # calls the `main` function above
