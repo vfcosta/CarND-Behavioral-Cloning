@@ -17,7 +17,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('epochs', 5, "The number of epochs.")
 flags.DEFINE_integer('batch_size', 50, "The batch size.")
 flags.DEFINE_float('scale', 0.25, "Image scale.")
-flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
+flags.DEFINE_string('data_dir', 'data', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
 flip_threshold = 0.01
@@ -39,7 +39,9 @@ def preprocess(image, normalize=True, flip=False):
 
 def generate_single(row, image_label='center', flip=False):
     steering_factor = {'center': 0, 'right': -0.25, 'left': 0.25}
-    image = kimage.load_img(FLAGS.data_dir + "/" + row[image_label].strip())
+    image_path = row[image_label].strip()
+    if not image_path.startswith('/'): image_path = FLAGS.data_dir + "/" + image_path
+    image = kimage.load_img(image_path)
     steering = row['steering'] + steering_factor[image_label]
     if flip: steering *= -1
     return preprocess(image, flip=flip), steering
