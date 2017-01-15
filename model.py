@@ -16,10 +16,10 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('epochs', 5, "The number of epochs.")
 flags.DEFINE_integer('batch_size', 50, "The batch size.")
 flags.DEFINE_float('scale', 0.25, "Image scale.")
-flags.DEFINE_string('data_dir', 'data', "Data dir.")
+flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-flip_threshold = 0.01
+flip_threshold = 0.05
 
 
 def crop_image(image_array):
@@ -77,10 +77,11 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
                     image, target = generate_single(row, image_label=image_label, flip=flip)
                     images.append(image)
                     targets.append(target)
-            if index % size == 0 or index == len(data):
-                yield (np.array(images), np.array(targets))
-                images = []
-                targets = []
+                    if len(images) % size == 0:
+                        yield (np.array(images), np.array(targets))
+                        images = []
+                        targets = []
+        if len(images) > 0: yield (np.array(images), np.array(targets))
 
 
 def create_model():
@@ -123,6 +124,7 @@ def calculate_data_len(data, positions=3):
     """
     flip_len = len(data[abs(data['steering']) > flip_threshold]) if flip_threshold else data['steering']
     return len(data) + (2*positions - 1) * flip_len
+    # return positions * (len(data) + flip_len)
 
 
 def save_model(model):
