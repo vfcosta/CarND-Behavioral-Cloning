@@ -45,13 +45,19 @@ def preprocess(image, normalize=True, flip=False):
     return image_array
 
 
-def generate_single(row, image_label='center', flip=False):
+def calculate_steering(steering, image_label, flip=False):
+    """Calculate steering angle based on image position"""
     steering_factor = {'center': 0, 'right': -0.25, 'left': 0.25}
+    steering += steering_factor[image_label]
+    if flip: steering *= -1
+    return min(max(steering, -1), 1)  # keep steering in the range [-1, 1]
+
+
+def generate_single(row, image_label='center', flip=False):
     image_path = row[image_label].strip()
     if not image_path.startswith('/'): image_path = FLAGS.data_dir + "/" + image_path
     image = kimage.load_img(image_path)
-    steering = row['steering'] + steering_factor[image_label]
-    if flip: steering *= -1
+    steering = calculate_steering(row['steering'], image_label, flip=flip)
     return preprocess(image, flip=flip), steering
 
 
@@ -64,6 +70,7 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
         for _, row in data.iterrows():
             index += 1
             for image_label in image_labels:
+                if flip_threshold and image_label != 'center' and abs(row['steering']) <= flip_threshold: continue
                 for flip in [False, True]:
                     # do not flip images with smaller steering angles
                     if flip_threshold and flip and abs(row['steering']) <= flip_threshold: continue
@@ -114,8 +121,8 @@ def calculate_data_len(data, positions=3):
     Calculate the length of data based on augmentation strategies
     positions = 3 # center, right and left images
     """
-    flip_len = len(data[abs(data['steering']) > flip_threshold]) if flip_threshold else len(data['steering'])
-    return positions * (len(data) + flip_len)
+    flip_len = len(data[abs(data['steering']) > flip_threshold]) if flip_threshold else data['steering']
+    return len(data) + (2*positions - 1) * flip_len
 
 
 def save_model(model):
