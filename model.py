@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from keras.layers import Input, Flatten, Dense, Activation, Dropout, ELU
 from keras.models import Model
+from keras.regularizers import l2
 from sklearn.model_selection import train_test_split
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
@@ -14,12 +15,12 @@ FLAGS = flags.FLAGS
 
 # command line flags
 flags.DEFINE_integer('epochs', 5, "The number of epochs.")
-flags.DEFINE_integer('batch_size', 50, "The batch size.")
+flags.DEFINE_integer('batch_size', 300, "The batch size.")
 flags.DEFINE_float('scale', 0.25, "Image scale.")
 flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-flip_threshold = 0.05
+steering_threshold = 0.05
 
 
 def crop_image(image_array):
@@ -27,12 +28,12 @@ def crop_image(image_array):
 
 
 def resize_image(image):
-    """Resize image using ANTIALIAS algoithm for better performance in downscale"""
+    """Resize image using ANTIALIAS algorithm for better performance in downscale"""
     return image.resize((int(320*FLAGS.scale), int(160*FLAGS.scale)), resample=PIL.Image.ANTIALIAS)
 
 
 def normalize_image(image_array):
-    """Convert image from [0, 255] to [-1, 1]"""
+    """Normalize image to [-1, 1]"""
     return image_array / 128 - 1
 
 
@@ -67,13 +68,16 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
         images = []
         targets = []
         index = 0
+        # shuffle data
+        data = data.sample(frac=1)
         for _, row in data.iterrows():
             index += 1
             for image_label in image_labels:
-                if flip_threshold and image_label != 'center' and abs(row['steering']) <= flip_threshold: continue
+                # if steering_threshold and image_label != 'center' and abs(row['steering']) <= steering_threshold:
+                #     continue
                 for flip in [False, True]:
                     # do not flip images with smaller steering angles
-                    if flip_threshold and flip and abs(row['steering']) <= flip_threshold: continue
+                    if steering_threshold and flip and abs(row['steering']) <= steering_threshold: continue
                     image, target = generate_single(row, image_label=image_label, flip=flip)
                     images.append(image)
                     targets.append(target)
@@ -84,28 +88,27 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
         if len(images) > 0: yield (np.array(images), np.array(targets))
 
 
-def create_model():
+def create_model(beta=0.001):
     # define input layer
     inp = Input(shape=(vertical_crop[1] - vertical_crop[0], int(320 * FLAGS.scale), 3))
 
     # convolution layers
-    out = Convolution2D(16, 3, 3)(inp)
+    out = Convolution2D(16, 5, 5, W_regularizer=l2(beta))(inp)
     out = MaxPooling2D()(out)
     out = Activation('relu')(out)
 
-    out = Convolution2D(64, 3, 3)(out)
+    out = Convolution2D(32, 3, 3, W_regularizer=l2(beta))(out)
     out = MaxPooling2D()(out)
     out = Activation('relu')(out)
 
     # Fully connected layers
     out = Flatten()(out)
 
-    out = Dense(256)(out)
-    out = Dropout(0.4)(out)
+    out = Dense(512, W_regularizer=l2(beta))(out)
+    out = Dropout(0.5)(out)
     out = Activation('relu')(out)
 
-    out = Dense(50)(out)
-    out = Dropout(0.4)(out)
+    out = Dense(50, W_regularizer=l2(beta))(out)
     out = Activation('relu')(out)
 
     # Output layer
@@ -122,9 +125,8 @@ def calculate_data_len(data, positions=3):
     Calculate the length of data based on augmentation strategies
     positions = 3 # center, right and left images
     """
-    flip_len = len(data[abs(data['steering']) > flip_threshold]) if flip_threshold else data['steering']
-    return len(data) + (2*positions - 1) * flip_len
-    # return positions * (len(data) + flip_len)
+    flip_len = len(data[abs(data['steering']) > steering_threshold]) if steering_threshold else len(data)
+    return positions * (len(data) + flip_len)
 
 
 def save_model(model):
@@ -135,7 +137,7 @@ def save_model(model):
         out.write(model.to_json())
 
 
-def main(_):
+def train():
     driving_log = pd.read_csv(FLAGS.data_dir + '/driving_log.csv', usecols=[0, 1, 2, 3])
 
     model = create_model()
@@ -154,13 +156,17 @@ def main(_):
         model.fit_generator(generator=generate_data(train_log, image_labels=image_labels),
                             validation_data=generate_data(validation_log, image_labels=image_labels),
                             nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
-        save = "y" # force save when finish
+        save = "y"  # force save when finish
     except KeyboardInterrupt:
         # option to save even when it's interrupted
         save = input("\n\nStopped! Do you want to save? <y/n>")
 
     if save == "y": save_model(model)
     print("Finished!")
+
+
+def main(_):
+    train()
 
 # calls the `main` function above
 if __name__ == '__main__':

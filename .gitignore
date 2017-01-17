@@ -1,1 +1,5 @@
 .idea
+data
+data_sdc
+.ipynb_checkpoints
+__pycache__
