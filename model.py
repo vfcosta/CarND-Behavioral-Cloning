@@ -14,13 +14,13 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # command line flags
-flags.DEFINE_integer('epochs', 5, "The number of epochs.")
-flags.DEFINE_integer('batch_size', 300, "The batch size.")
-flags.DEFINE_float('scale', 0.25, "Image scale.")
+flags.DEFINE_integer('epochs', 10, "The number of epochs.")
+flags.DEFINE_integer('batch_size', 100, "The batch size.")
+flags.DEFINE_float('scale', 0.5, "Image scale.")
 flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
 vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-steering_threshold = 0.05
+steering_threshold = 0.08
 
 
 def crop_image(image_array):
@@ -69,12 +69,12 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
         targets = []
         index = 0
         # shuffle data
-        data = data.sample(frac=1)
+        # data = data.sample(frac=1)
         for _, row in data.iterrows():
             index += 1
             for image_label in image_labels:
-                # if steering_threshold and image_label != 'center' and abs(row['steering']) <= steering_threshold:
-                #     continue
+                if steering_threshold and image_label != 'center' and abs(row['steering']) <= steering_threshold:
+                    continue
                 for flip in [False, True]:
                     # do not flip images with smaller steering angles
                     if steering_threshold and flip and abs(row['steering']) <= steering_threshold: continue
@@ -93,22 +93,30 @@ def create_model(beta=0.001):
     inp = Input(shape=(vertical_crop[1] - vertical_crop[0], int(320 * FLAGS.scale), 3))
 
     # convolution layers
-    out = Convolution2D(16, 5, 5, W_regularizer=l2(beta))(inp)
+    out = Convolution2D(16, 3, 3, W_regularizer=l2(beta))(inp)
     out = MaxPooling2D()(out)
+    out = Dropout(0.2)(out)
     out = Activation('relu')(out)
 
-    out = Convolution2D(32, 3, 3, W_regularizer=l2(beta))(out)
+    out = Convolution2D(64, 3, 3, W_regularizer=l2(beta), border_mode='same')(out)
     out = MaxPooling2D()(out)
+    out = Dropout(0.2)(out)
+    out = Activation('relu')(out)
+
+    out = Convolution2D(128, 3, 3, W_regularizer=l2(beta), border_mode='same')(out)
+    out = MaxPooling2D()(out)
+    out = Dropout(0.2)(out)
     out = Activation('relu')(out)
 
     # Fully connected layers
     out = Flatten()(out)
 
-    out = Dense(512, W_regularizer=l2(beta))(out)
-    out = Dropout(0.5)(out)
+    out = Dense(256, W_regularizer=l2(beta))(out)
+    out = Dropout(0.2)(out)
     out = Activation('relu')(out)
 
     out = Dense(50, W_regularizer=l2(beta))(out)
+    out = Dropout(0.2)(out)
     out = Activation('relu')(out)
 
     # Output layer
@@ -126,7 +134,8 @@ def calculate_data_len(data, positions=3):
     positions = 3 # center, right and left images
     """
     flip_len = len(data[abs(data['steering']) > steering_threshold]) if steering_threshold else len(data)
-    return positions * (len(data) + flip_len)
+    # return positions * (len(data) + flip_len)
+    return len(data) + (2 * positions - 1) * flip_len
 
 
 def save_model(model):
