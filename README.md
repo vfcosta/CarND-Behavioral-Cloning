@@ -40,6 +40,9 @@ Dropout with probability of 0.1 was used after each layer (except the output lay
 The model uses a loss function with regularization to be even more strong against overfitting.
 
 ## Training Process
+It's not viable for this problem to load and preprocess all data in memory to feed the network for trainig.
+So a python generator function was used to provide input data in batches. 
+
 The input data was randomly splitted to use 80% for training and 20% for validation.
 
 The Adam optimizer was used because it's a better fit to stochastic optimizations by controlling the learning rate along each round of training.

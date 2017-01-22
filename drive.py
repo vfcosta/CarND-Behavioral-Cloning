@@ -42,8 +42,9 @@ def telemetry(sid, data):
     transformed_image_array = image_array[None, :, :, :]
     # This model currently assumes that the features of the model are just the images. Feel free to change this.
     steering_angle = float(model.predict(transformed_image_array, batch_size=1))
-    # Set throttle inversally proportional of speed. Also reduce throttle when steering angle increases.
-    throttle = min(1, (6 - 5*abs(float(steering_angle)))/max(1, float(speed)))
+    # Use in track 2: set throttle inversally proportional of speed. Also reduce throttle when steering angle increases.
+    # throttle = min(1, (6 - 5*abs(float(steering_angle)))/max(1, float(speed)))
+    throttle = 0.2
     print(steering_angle, throttle)
     send_control(steering_angle, throttle)
 
