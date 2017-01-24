@@ -1,21 +1,32 @@
 # CarND-Behavioral-Cloning
 
+Source code for the Behavioral Cloning project from Udacity's Self Driving Car Nanodegree.
+
 ## Data Exploration
 
+The data used in this project was provided from Udacity in the project description.
+This data contains 8036 samples on driving in the first track from simulator.
+Each row contains three images from left, center and right cameras and a steering angle (other input parameters are not used here).
 
+See below an example of left, center and right images:
 
-### Original Data
+<img src="images/left_2016_12_01_13_30_48_287.jpg" width="250">
+<img src="images/center_2016_12_01_13_30_48_287.jpg" width="250">
+<img src="images/right_2016_12_01_13_30_48_287.jpg" width="250">
 
-Used data from the first track provided from Udacity in the project description.
+This data is highly unbalanced, as you may see below:
 
 ![Original histogram](images/data_hist.png)
 
 ### Data Augmentation
+An data augmentation process was used to have a better balance of data.
+It consist of three steps:
 
-1. Use right images with -0.25 adjust
-1. Use left images with 0.25 adjust
-1. Flip right, left and center images that has steering angles greater than 0.05
+1. Use right images and adjust the steering angle with a constant of -0.25.
+1. Use left images and adjust the steering angle with a constant of 0.25.
+1. Flip right, left and center images that has steering angles greater than 0.01.
 
+After that, the augmented data had a much better balance:
 ![Augmented histogram](images/data_hist_augmented.png)
 
 ### Preprocessing Images
