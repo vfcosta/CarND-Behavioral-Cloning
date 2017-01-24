@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import json
-from keras.layers import Input, Flatten, Dense, Activation, Dropout, ELU
+from keras.layers import Input, Flatten, Dense, Activation, Dropout
 from keras.models import Model
 from keras.regularizers import l2
 from sklearn.model_selection import train_test_split
@@ -21,8 +21,8 @@ flags.DEFINE_integer('batch_size', 100, "The batch size.")
 flags.DEFINE_float('scale', 0.25, "Image scale.")
 flags.DEFINE_string('data_dir', 'data_sdc', "Data dir.")
 
-vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)
-steering_threshold = 0.01
+vertical_crop = (np.array([60, 135]) * FLAGS.scale).astype(int)  # bounds for crop vertically
+steering_threshold = 0.01  # threshold for use in augmentation process
 
 
 def crop_image(image_array):
@@ -41,7 +41,7 @@ def normalize_image(image_array):
 
 
 def preprocess(image, normalize=True, flip=False):
-    """Resize, crop, flip and normalize image"""
+    """Resize, crop, convert to HSV, flip and normalize image"""
     image = resize_image(image)
     image_array = crop_image(np.asarray(image))
     image_array = cv2.cvtColor(image_array, cv2.COLOR_BGR2HSV)
@@ -72,15 +72,12 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
     while True:
         images = []
         targets = []
-        index = 0
         for _, row in data.iterrows():
-            index += 1
             for image_label in image_labels:
-                # if steering_threshold and image_label != 'center' and abs(row['steering']) <= steering_threshold:
-                #     continue
                 for flip in [False, True]:
-                    # do not flip images with smaller steering angles
+                    # skip images with steering angles smaller than threshold
                     if steering_threshold and flip and abs(row['steering']) <= steering_threshold: continue
+
                     image, target = generate_single(row, image_label=image_label, flip=flip)
                     images.append(image)
                     targets.append(target)
@@ -92,7 +89,12 @@ def generate_data(data, size=FLAGS.batch_size, image_labels=['center', 'right', 
 
 
 def create_model(beta=0.002, dropout_prob=0.2):
-    """Create the model using keras functional api"""
+    """Create the model using keras functional api
+
+    Keyword arguments:
+        beta: l2 regularization parameter
+        dropout_prob: dropout probability
+    """
     # define input layer
     inp = Input(shape=(vertical_crop[1] - vertical_crop[0], int(320 * FLAGS.scale), 3))
 
@@ -128,11 +130,10 @@ def create_model(beta=0.002, dropout_prob=0.2):
 def calculate_data_len(data, positions=3):
     """
     Calculate the length of data based on augmentation strategies
-    positions = 3 # center, right and left images
+    positions = 3 (center, right and left images)
     """
     flip_len = len(data[abs(data['steering']) > steering_threshold]) if steering_threshold else len(data)
     return positions * (len(data) + flip_len)
-    # return len(data) + (2 * positions - 1) * flip_len
 
 
 def save_model(model):
@@ -167,9 +168,10 @@ def train():
 
     # train model
     try:
-        history = model.fit_generator(generator=generate_data(train_log, image_labels=image_labels),
-                            validation_data=generate_data(validation_log, image_labels=image_labels),
-                            nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
+        history = model.fit_generator(
+            generator=generate_data(train_log, image_labels=image_labels),
+            validation_data=generate_data(validation_log, image_labels=image_labels),
+            nb_epoch=FLAGS.epochs, samples_per_epoch=train_len, nb_val_samples=validation_len)
         save = "y"  # force save when finish
         save_history(history)
     except KeyboardInterrupt:
