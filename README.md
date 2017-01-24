@@ -30,6 +30,8 @@ After that, the augmented data had a much better balance:
 ![Augmented histogram](images/data_hist_augmented.png)
 
 ### Preprocessing Images
+Steps for image preprocessing:
+
 1. Resize the input image from 320x160 to 80x40.
 1. Crop image vertically, removing the first 15 and the last 7 pixels, resulting in a 80x18 image.
 1. Convert color space from BGR to HSV to offer an advantage to the model in using a color space that has a separated brightness (value) component.
@@ -69,13 +71,17 @@ To prevent overfitting, the model uses a loss function with regularization (beta
 The batch size is 100 and the number of epochs is 5.
 However, after 3 epochs the results starts to improve very slowly and does not seems to be relevant for the final results.
 
-The loss function used in the optimization process was *mean squared error*.
+The loss function used in the optimization process was the *mean squared error*.
+Since this is a regression problem an accuracy metric was not used in the optimization process.
 
 ## Results
 The mean squared error achieved in the training process was 0.0297 and 0.0280 for the training and validation data, respectively.
 ![Loss](images/loss.png)
 
-The deep learning network described here was able to successfully drive the car through the track 1: [one lap example](track1.ogv?raw=true).
+The deep learning network described here was able to successfully drive the car throughout the track 1: [one lap example](track1.ogv?raw=true).
+The second track was also evaluated and the car drives successfully on a large part of it, even without training with data from the second track.
 
 See below some predictions made by the model described here:
 ![Predictions](images/predictions.png)
+
+An example of the output from convolution layers can be visualized here for [first layer](images/conv1.png) and [second layer](images/conv2.png).
